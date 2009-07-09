@@ -39,20 +39,15 @@ typedef struct {
 
 // static IpoptProblem nlp = NULL;             /* IpoptProblem */
 
-#ifdef __GNUC__
-__attribute__ ((format (printf, 1, 2)))
-#endif
-void logger(const char* fmt, ...);
+void logger(char* str);
 
 
 typedef struct {
 	PyObject_HEAD
 	IpoptProblem nlp;
 	DispatchData* data;
-	Index n,m;
 } problem;
 
 
-void save_python_exception(void);
 
 #endif

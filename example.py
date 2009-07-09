@@ -107,21 +107,15 @@ print eval_h(x0, pi0, 1.0, False)
 print eval_h(x0, pi0, 1.0, True)
 """
 
-r = nlp.solve(x0)
+x, zl, zu, obj = nlp.solve(x0)
 nlp.close()
 
 print "Solution of the primal variables, x"
-print r["x"]
+print x
 
 print "Solution of the bound multipliers, z_L and z_U"
-print r["mult_xL"], r["mult_xU"]
-
-print "Solution of the constraint multiplier, lambda"
-print r["mult_g"]
+print zl, zu
 
 print "Objective value"
-print "f(x*) =", r["f"]
-
-print "Constraint value"
-print "g(x*) =", r["g"]
+print "f(x*) =", obj
 

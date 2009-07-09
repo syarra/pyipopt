@@ -31,53 +31,14 @@
 	
 #include "hook.h"
 
-#if 0
-void logger(const char* fmt,...)
+void logger(char* str)
 {
-	va_list ap;
-	va_start(ap,fmt);
-	vprintf(fmt,ap);
-	va_end(ap);
-        printf("\n");
-	fflush(stdout);
-}
-#else
-void logger(const char* fmt,...) {}
-#endif
-
-
-#define Is_double_Array(obj) ((PyArray_TYPE(obj)) == NPY_DOUBLE)
-#define Is_long_Array(obj)   ((PyArray_TYPE(obj)) == NPY_LONG)
-
-#define ERROR								\
-	do								\
-	{								\
-		assert(PyErr_Occurred());				\
-		goto error;						\
-	} while(0)
-
-Bool apply_new_python(DispatchData *myowndata, PyObject *arrayx)
-{
-	if (!myowndata->apply_new_python) return TRUE;
-
-	Bool r = FALSE;
-	PyObject* arg1 = Py_BuildValue("(O)", arrayx);
-	if (!arg1) ERROR;
-	PyObject* tempresult = PyObject_CallObject (myowndata->apply_new_python, arg1);
-	if (!tempresult) ERROR;
-	r = TRUE;
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_XDECREF(arg1);
-	Py_XDECREF(tempresult);
-	return r;
+//	printf("%s\n", str);
 }
 
 Bool eval_f(Index n, Number* x, Bool new_x,
             Number* obj_value, UserDataPtr data)
 {
-	Bool r = FALSE;
 	logger("[Callback:E]eval_f");
 	npy_intp dims[1];
 	dims[0] = n;
@@ -85,16 +46,23 @@ Bool eval_f(Index n, Number* x, Bool new_x,
 	DispatchData *myowndata = (DispatchData*) data;
 	UserDataPtr user_data = (UserDataPtr) myowndata->userdata;
 	
-	if (myowndata->eval_f_python == NULL)
-	{
-		PyErr_SetString(PyExc_SystemError,"null objective function");
-		ERROR;
+	PyObject *arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
+	if (!arrayx) return FALSE;
+
+	if (new_x && myowndata->apply_new_python) {
+		/* Call the python function to applynew */
+		PyObject* arg1;
+		arg1 = Py_BuildValue("(O)", arrayx);
+		PyObject* tempresult = PyObject_CallObject (myowndata->apply_new_python, arg1);
+		if (!tempresult) {
+			printf("[Error] Python function apply_new returns a None\n");
+			Py_DECREF(arg1);	
+			return FALSE;
+		}
+		Py_DECREF(arg1);
+		Py_DECREF(tempresult);
 	}
 
-	PyObject *arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
-	if (!arrayx) ERROR;
-
-	if (new_x) if (!apply_new_python(myowndata, arrayx)) ERROR;
 	
 	PyObject* arglist;
 	
@@ -104,154 +72,142 @@ Bool eval_f(Index n, Number* x, Bool new_x,
 		arglist = Py_BuildValue("(O)", arrayx);
 
 	PyObject* result  = PyObject_CallObject (myowndata->eval_f_python ,arglist);
-	if (!result) ERROR;
+
+	if (!result) 
+		PyErr_Print();
+		
 	if (!PyFloat_Check(result))
-	{
-		PyErr_SetString(PyExc_TypeError,"result of eval_f must be a float");
-		ERROR;
-	}
+		PyErr_Print();
 	
 	*obj_value =  PyFloat_AsDouble(result);
-        r = TRUE;
-
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_XDECREF(result);
-  	Py_XDECREF(arrayx);
+	Py_DECREF(result);
+  	Py_DECREF(arrayx);
 	Py_CLEAR(arglist);
 	logger("[Callback:R] eval_f");
-  	return r;
+  	return TRUE;
 }
 
 Bool eval_grad_f(Index n, Number* x, Bool new_x,
                  Number* grad_f, UserDataPtr data)
 {
-	Bool r = FALSE;
-	PyObject *arrayx = NULL, *arglist = NULL;
-	PyArrayObject* result = NULL;
 	logger("[Callback:E] eval_grad_f");
 	
 	DispatchData *myowndata = (DispatchData*) data;
 	UserDataPtr user_data = (UserDataPtr) myowndata->userdata;
 	
-	if (myowndata->eval_grad_f_python == NULL)
-	{
-		PyErr_SetString(PyExc_SystemError,"null gradient function");
-		ERROR;
-	}
+	if (myowndata->eval_grad_f_python == NULL) PyErr_Print();
 	
 	npy_intp dims[1];
 	dims[0] = n;
-	import_array1(FALSE); 
+	import_array( ); 
 	
-	arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
-	if (!arrayx) ERROR;
+	PyObject *arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
+	if (!arrayx) return FALSE;
 	
-	if (new_x) if (!apply_new_python(myowndata, arrayx)) ERROR;
+	if (new_x && myowndata->apply_new_python) {
+		/* Call the python function to applynew */
+		PyObject* arg1 = Py_BuildValue("(O)", arrayx);
+		PyObject* tempresult = PyObject_CallObject (myowndata->apply_new_python, arg1);
+		if (!tempresult) {
+			printf("[Error] Python function apply_new returns a None\n");
+			Py_DECREF(arg1);	
+			return FALSE;
+		}
+		Py_DECREF(arg1);
+		Py_DECREF(tempresult);
+	}	
+	
+	PyObject* arglist; 
 	
 	if (user_data != NULL)
 		arglist = Py_BuildValue("(OO)", arrayx, (PyObject*)user_data);
 	else 
 		arglist = Py_BuildValue("(O)", arrayx);
 	
-	result = (PyArrayObject*) PyObject_CallObject 
-		(myowndata->eval_grad_f_python, arglist);
+	PyArrayObject* result = 
+		(PyArrayObject*) PyObject_CallObject 
+				(myowndata->eval_grad_f_python, arglist);
 	
-	if (!result || !PyArray_Check(result)) ERROR;
-
-#define CHECK(expr,msg)							\
-	do if (!(expr))							\
-	{								\
-		PyErr_SetString(PyExc_TypeError, "eval_grad_f: " msg);	\
-		ERROR;							\
-	} while(0)
-	CHECK(PyArray_ISCONTIGUOUS(result),"result array must be contiguous");
-	CHECK(Is_double_Array(result),"result must be a float array");
-	CHECK(1==PyArray_NDIM(result),"result must be a 1d array");
-	CHECK(n==PyArray_DIM(result,0),
-		"result must have as many elements as the input vector");
-#undef CHECK	
+	if (!result) 
+		PyErr_Print();
+		
+	if (!PyArray_Check(result))
+		PyErr_Print();
 	
 	double *tempdata = (double*)result->data;
 	int i;
 	for (i = 0; i < n; i++)
 		grad_f[i] = tempdata[i];
-	r = TRUE;
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_XDECREF(result);
+		
+	Py_DECREF(result);
   	Py_CLEAR(arrayx);
 	Py_CLEAR(arglist);
 	logger("[Callback:R] eval_grad_f");	
-	return r;
+	return TRUE;
 }
 
 
 Bool eval_g(Index n, Number* x, Bool new_x,
             Index m, Number* g, UserDataPtr data)
 {
-	Bool r = FALSE;
-	PyObject *arrayx = NULL, *arglist = NULL;
-	PyArrayObject* result = NULL;
+
 	logger("[Callback:E] eval_g");
 
 	DispatchData *myowndata = (DispatchData*) data;
 	UserDataPtr user_data = (UserDataPtr) myowndata->userdata;
 	
 	if (myowndata->eval_g_python == NULL) 
-	{
-		PyErr_SetString(PyExc_SystemError,"null constraint function");
-		ERROR;
-	}
-
+		PyErr_Print();
 	npy_intp dims[1];
 	int i;
 	double *tempdata;
 	
 	dims[0] = n;
-	import_array1(FALSE);
+	import_array( );
 	
-	arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
-	if (!arrayx) ERROR;
+	PyObject *arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
+	if (!arrayx) return FALSE;
 	
-	if (new_x) if (!apply_new_python(myowndata, arrayx)) ERROR;
+	if (new_x && myowndata->apply_new_python) {
+		/* Call the python function to applynew */
+		PyObject* arg1 = Py_BuildValue("(O)", arrayx);
+		PyObject* tempresult = PyObject_CallObject (myowndata->apply_new_python, arg1);
+		if (!tempresult) {
+			printf("[Error] Python function apply_new returns a None\n");
+			Py_DECREF(arg1);	
+			return FALSE;
+		}
+		Py_DECREF(arg1);
+		Py_DECREF(tempresult);
+	}
+	
+	PyObject* arglist; 
 	
 	if (user_data != NULL)
 		arglist = Py_BuildValue("(OO)", arrayx, (PyObject*)user_data);
 	else 
+	
 		arglist = Py_BuildValue("(O)", arrayx);
 	
-	result = (PyArrayObject*) PyObject_CallObject 
-		(myowndata->eval_g_python, arglist);
+	PyArrayObject* result = 
+		(PyArrayObject*) PyObject_CallObject 
+			(myowndata->eval_g_python, arglist);
 	
-	if (!result || !PyArray_Check(result)) ERROR;
+	if (!result) 
+		PyErr_Print();
+		
+	if (!PyArray_Check(result))
+		PyErr_Print();
 	
-#define CHECK(expr,msg)							\
-	do if (!(expr))							\
-	{								\
-		PyErr_SetString(PyExc_TypeError, "eval_g: " msg);	\
-		ERROR;							\
-	} while(0)
-	CHECK(PyArray_ISCONTIGUOUS(result),"result array must be contiguous");
-	CHECK(Is_double_Array(result),"result must be a float array");
-	CHECK(1==PyArray_NDIM(result),"result must be a 1d array");
-	CHECK(m==PyArray_DIM(result,0),
-		"result must have as many elements as constraints");
-#undef CHECK	
 	tempdata = (double*)result->data;
 	for (i = 0; i < m; i++)
 		g[i] = tempdata[i];
-	r = TRUE;
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_XDECREF(result);
+		
+	Py_DECREF(result);
   	Py_CLEAR(arrayx);
 	Py_CLEAR(arglist);
 	logger("[Callback:R] eval_g");
-	return r;
+	return TRUE;
 }
 
 Bool eval_jac_g(Index n, Number *x, Bool new_x,
@@ -260,121 +216,106 @@ Bool eval_jac_g(Index n, Number *x, Bool new_x,
                 UserDataPtr data)
 {
 
-	Bool r = FALSE;
-	PyObject *arrayx = NULL, *arglist = NULL, *result = NULL;
-	PyArrayObject *row = NULL, *col = NULL; 
 	logger("[Callback:E] eval_jac_g");
 
 	DispatchData *myowndata = (DispatchData*) data;
 	UserDataPtr user_data = (UserDataPtr) myowndata->userdata;
 	
 	int i;
-	npy_intp* rowd = NULL;
-	npy_intp* cold = NULL;
+	long* rowd = NULL; 
+	long* cold = NULL;
 	
 	npy_intp dims[1];
 	dims[0] = n;
 	
 	double *tempdata;
 
-	if (myowndata->eval_jac_g_python == NULL) 
-	{
-		PyErr_SetString(PyExc_SystemError,"null constraint jacobian function");
-		ERROR;
-	}
+	if (myowndata->eval_grad_f_python == NULL) 
+		PyErr_Print();
 
 	if (values == NULL) {
-		import_array1(FALSE);
+		import_array( )
 		PyObject *arrayx = PyArray_SimpleNewFromData(1, 
-					dims, PyArray_DOUBLE , (char*) x);
-		if (!arrayx) ERROR;
-
+		 			dims, PyArray_DOUBLE , (char*) x);
+		if (!arrayx) return FALSE;
+		
+		PyObject* arglist; 
+		
 		if (user_data != NULL)
 			arglist = Py_BuildValue("(OOO)", 
 					arrayx, Py_True, (PyObject*)user_data);
 		else 
 			arglist = Py_BuildValue("(OO)", arrayx, Py_True);	
 		
-		result = PyObject_CallObject (myowndata->eval_jac_g_python, arglist);
-		if (!result) ERROR;
-		if (!PyArg_ParseTuple(result, "O!O!;result of eval_jac_g must be two arrays in a tuple",
-				      &PyArray_Type, &row,
-				      &PyArray_Type, &col) && row && col)
-			ERROR;
-#define CHECK(expr,msg) do {						\
-		if (!(expr))						\
-		{							\
-			PyErr_SetString(PyExc_TypeError, "eval_jac_g: " msg); \
-			ERROR;						\
-		} } while(0)
-		CHECK(PyArray_ISCONTIGUOUS(row),"rows must be contiguous");
-		CHECK(PyArray_ISCONTIGUOUS(col),"columns must be contiguous");
-		CHECK(Is_long_Array(row),"rows must be an integer array");
-		CHECK(Is_long_Array(col),"columns must be an integer array");
-		CHECK(1 == PyArray_NDIM(row),"rows must be a 1d array");
-		CHECK(1 == PyArray_NDIM(col),"columns must be a 1d array");
-		CHECK(nele_jac == PyArray_DIM(row,0),
-			"there must be as many rows as non-zero jacobian values");
-		CHECK(nele_jac == PyArray_DIM(col,0),
-			"there must be as many columns as non-zero jacobian values");
-#undef CHECK
+		PyObject* result = PyObject_CallObject (myowndata->eval_jac_g_python, arglist);
+		if (!PyTuple_Check(result))
+			PyErr_Print();
+			
+		PyArrayObject* row = (PyArrayObject*) PyTuple_GetItem(result, 0);
+		PyArrayObject* col = (PyArrayObject*) PyTuple_GetItem(result, 1);
+		
+		if (!row || !col || !PyList_Check(row) || !PyList_Check(col))
+			PyErr_Print();
 
-		rowd = (npy_intp*) row->data;
-		cold = (npy_intp*) col->data;
+		rowd = (long*) row->data;
+		cold = (long*) col->data;
 		
 		for (i = 0; i < nele_jac; i++) {
 			iRow[i] = (Index) rowd[i];
 			jCol[i] = (Index) cold[i];
-			//logger("%d Row %d, Col %d\n", i, iRow[i], jCol[i]);
+			//printf("%d Row %d, Col %d\n", i, iRow[i], jCol[i]);
 		}
+		Py_CLEAR(arrayx);
+		Py_DECREF(result);
+		Py_CLEAR(arglist);
 		logger("[Callback:R] eval_jac_g(1)");	
 	}
 	
 	else {
-		arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
-		if (!arrayx) ERROR;
+		PyObject *arrayx = PyArray_SimpleNewFromData(1, 
+					dims, PyArray_DOUBLE , (char*) x);
+		if (!arrayx) return FALSE;
 		
-		if (new_x) if (!apply_new_python(myowndata, arrayx)) ERROR;
+		if (new_x && myowndata->apply_new_python) {
+			/* Call the python function to applynew */
+			PyObject* arg1 = Py_BuildValue("(O)", arrayx);
+			PyObject* tempresult = PyObject_CallObject (myowndata->apply_new_python, arg1);
+			if (!tempresult) {
+				printf("[Error] Python function apply_new returns a None\n");
+				Py_DECREF(arg1);	
+				return FALSE;
+			}
+			Py_DECREF(arg1);
+			Py_DECREF(tempresult);
+		}
 		
+		PyObject* arglist; 
 		if (user_data != NULL)
 			arglist = Py_BuildValue("(OOO)", 
 					arrayx, Py_False, (PyObject*)user_data);
 		else 
 			arglist = Py_BuildValue("(OO)", arrayx, Py_False);	
 		
-		result = PyObject_CallObject(myowndata->eval_jac_g_python, arglist);
+		PyArrayObject* result = (PyArrayObject*) 
+					PyObject_CallObject (myowndata->eval_jac_g_python, arglist);
 		
-		if (!result || !PyArray_Check(result)) ERROR;
-
-#define CHECK(expr,msg)							\
-		do if (!(expr))						\
-		{							\
-			PyErr_SetString(PyExc_TypeError, "eval_jac_g: " msg); \
-			ERROR;						\
-		} while(0)
-		CHECK(PyArray_ISCONTIGUOUS(result),"result array must be contiguous");
-		CHECK(Is_double_Array(result),"result must be a float array");
-		CHECK(1==PyArray_NDIM(result),"result must be a 1d array");
-		CHECK(nele_jac==PyArray_DIM(result,0),
-			"result must have as many values as non-zero constraint jacobian values");
-#undef CHECK	
+		if (!result || !PyArray_Check(result)) 
+			PyErr_Print();
 		
-		tempdata = (double*)((PyArrayObject*)result)->data;
+		// Code is buggy here. We assume that result is a double array
+		assert (result->descr->type == 'd');
+		tempdata = (double*)result->data;
 		
 		for (i = 0; i < nele_jac; i++)
 			values[i] = tempdata[i];
-
+		
+		Py_DECREF(result);
+		Py_CLEAR(arrayx);
+		Py_CLEAR(arglist);
 		logger("[Callback:R] eval_jac_g(2)");
 	}
-	r = TRUE;
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_XDECREF(result);
-	Py_CLEAR(arrayx);
-	Py_CLEAR(arglist);
 	logger("[Callback:R] eval_jac_g");
-  	return r;
+  	return TRUE;
 }
 
 
@@ -383,9 +324,6 @@ Bool eval_h(Index n, Number *x, Bool new_x, Number obj_factor,
             Index nele_hess, Index *iRow, Index *jCol,
             Number *values, UserDataPtr data)
 {
-	Bool r = FALSE;
-	PyObject *objfactor = NULL, *lagrange = NULL,
-		*arglist = NULL, *result = NULL, *arrayx = NULL;
 	logger("[Callback:E] eval_h");
 
 	DispatchData *myowndata = (DispatchData*) data;
@@ -396,48 +334,29 @@ Bool eval_h(Index n, Number *x, Bool new_x, Number obj_factor,
 	npy_intp dims[1];
 	npy_intp dims2[1];
 	
-	if (myowndata->eval_h_python == NULL) 
-	{
-		PyErr_SetString(PyExc_SystemError,"null hessian function");
-		ERROR;
+	if (myowndata->eval_h_python == NULL)
+	{	printf("There is no eval_h assigned");
+		return FALSE;
 	}
 	if (values == NULL) {
-		arrayx = Py_True;
-		objfactor = Py_BuildValue("d", obj_factor);
-		lagrange = Py_True;
+		PyObject *newx = Py_True;
+		PyObject *objfactor = Py_BuildValue("d", obj_factor);
+		PyObject *lagrange = Py_True;
+		
+		PyObject* arglist;
 		
 		if (user_data != NULL) 
-			arglist =  Py_BuildValue("(OOOOO)", arrayx, lagrange, objfactor, Py_True, (PyObject*)user_data);
+			arglist =  Py_BuildValue("(OOOOO)", newx, lagrange, objfactor, Py_True, (PyObject*)user_data);
 		else 
-			arglist =  Py_BuildValue("(OOOO)", arrayx, lagrange, objfactor, Py_True);
+			arglist =  Py_BuildValue("(OOOO)", newx, lagrange, objfactor, Py_True);
 		
-		result = PyObject_CallObject (myowndata->eval_h_python, arglist);
-		if (!result) ERROR;
-
-		PyArrayObject *row = NULL, *col = NULL; 
-		if (!PyArg_ParseTuple(result, "O!O!;result of eval_h must be two arrays in a tuple",
-				      &PyArray_Type, &row,
-				      &PyArray_Type, &col) &&
-		    row && col)
-			ERROR;
-
-#define CHECK(expr,msg) do {						\
-		if (!(expr))						\
-		{							\
-			PyErr_SetString(PyExc_TypeError, "eval_h: " msg); \
-			ERROR;						\
-		} } while(0)
-		CHECK(PyArray_ISCONTIGUOUS(row),"rows must be contiguous");
-		CHECK(PyArray_ISCONTIGUOUS(col),"columns must be contiguous");
-		CHECK(Is_long_Array(row),"rows must be an integer array");
-		CHECK(Is_long_Array(col),"columns must be an integer array");
-		CHECK(1 == PyArray_NDIM(row),"rows must be a 1d array");
-		CHECK(1 == PyArray_NDIM(col),"columns must be a 1d array");
-		CHECK(nele_hess == PyArray_DIM(row,0),
-			"there must be as many rows as non-zero hessian values");
-		CHECK(nele_hess == PyArray_DIM(col,0),
-			"there must be as many columns as non-zero hessian values");
-#undef CHECK
+		PyObject* result 	= 
+			PyObject_CallObject (myowndata->eval_h_python, arglist);
+		if (!PyTuple_Check(result))
+			PyErr_Print();
+			
+		PyArrayObject* row = (PyArrayObject*)PyTuple_GetItem(result, 0);
+		PyArrayObject* col = (PyArrayObject*)PyTuple_GetItem(result, 1);
 
 		long* rdata = (long*)row->data;
 		long* cdata = (long*)col->data;
@@ -447,71 +366,66 @@ Bool eval_h(Index n, Number *x, Bool new_x, Number obj_factor,
 		for (i = 0; i < nele_hess; i++) {
 			iRow[i] = (Index)rdata[i];
 			jCol[i] = (Index)cdata[i];
-			if ( n < iRow[i] || n < jCol[i] )
-			{
-				PyErr_SetString(PyExc_TypeError, "eval_h: "
-					"Row or column must be less than "
-					"number of input elements");
-				ERROR;
-			}
-			// logger("PyIPOPT_DEBUG %d, %d\n", iRow[i], jCol[i]);
+			// printf("PyIPOPT_DEBUG %d, %d\n", iRow[i], jCol[i]);
 		}
 
+		Py_DECREF(objfactor);
+		Py_DECREF(result);
+		Py_CLEAR(arglist);
 		logger("[Callback:R] eval_h (1)");
 	}
 	else {	
-		objfactor = Py_BuildValue("d", obj_factor);
+		PyObject *objfactor = Py_BuildValue("d", obj_factor);
 		
 		dims[0] = n;
-		arrayx = PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
-		if (!arrayx) ERROR;
+		PyObject *arrayx = 
+			PyArray_SimpleNewFromData(1, dims, PyArray_DOUBLE , (char*) x);
+		if (!arrayx) return FALSE;
 		
-		if (new_x) if (!apply_new_python(myowndata, arrayx)) ERROR;
+		if (new_x && myowndata->apply_new_python) {
+			//  Call the python function to applynew 
+			PyObject* arg1 = Py_BuildValue("(O)", arrayx);
+			PyObject* tempresult = 
+				PyObject_CallObject (myowndata->apply_new_python, arg1);
+			if (!tempresult) {
+//				printf("[Error] Python function apply_new returns a None\n");
+				Py_DECREF(arg1);	
+				return FALSE;
+			}
+			Py_DECREF(arg1);
+			Py_DECREF(tempresult);
+		}
 		
 		dims2[0] = m;
-		lagrange = PyArray_SimpleNewFromData(1, dims2, PyArray_DOUBLE , (char*) lambda);
-		if (!lagrange) ERROR;
+		PyObject *lagrangex = 
+			PyArray_SimpleNewFromData(1, dims2, PyArray_DOUBLE , (char*) lambda);
+		if (!lagrangex) return FALSE;
+		
+		PyObject* arglist;
 		
 		if (user_data != NULL)
-			arglist = Py_BuildValue("(OOOOO)", arrayx, lagrange, objfactor, Py_False, (PyObject*)user_data);
+			arglist = Py_BuildValue("(OOOO)", arrayx, lagrangex, objfactor, Py_False, (PyObject*)user_data);
 		else
-			arglist = Py_BuildValue("(OOOO)", arrayx, lagrange, objfactor, Py_False);
-
-		result = PyObject_CallObject (myowndata->eval_h_python, arglist);
+			arglist = Py_BuildValue("(OOOOO)", arrayx, lagrangex, objfactor, Py_False);
+		PyArrayObject* result = 
+			(PyArrayObject*) PyObject_CallObject 
+				(myowndata->eval_h_python, arglist);
 		
-		if (!result || !PyArray_Check(result)) ERROR;
-
-#define CHECK(expr,msg)							\
-		do if (!(expr))						\
-		{							\
-			PyErr_SetString(PyExc_TypeError, "eval_h: " msg); \
-			ERROR;						\
-		} while(0)
-		CHECK(PyArray_ISCONTIGUOUS(result),"result array must be contiguous");
-		CHECK(Is_double_Array(result),"result must be a float array");
-		CHECK(1==PyArray_NDIM(result),"result must be a 1d array");
-		CHECK(nele_hess==PyArray_DIM(result,0),
-			"result must have as many values as non-zero hessian values");
-#undef CHECK	
+		if (!result) printf("[Error] Python function eval_h returns a None\n");
 		
-		double* tempdata = (double*)((PyArrayObject*)result)->data;
+		double* tempdata = (double*)result->data;
 		for (i = 0; i < nele_hess; i++)
-		{
-			values[i] = tempdata[i];
-			// logger("PyDebug %f \n", values[i]);
+		{	values[i] = tempdata[i];
+			// printf("PyDebug %f \n", values[i]);
 		}	
+		Py_CLEAR(arrayx);
+		Py_CLEAR(lagrangex);
+		Py_CLEAR(objfactor);
+		Py_DECREF(result);
+		Py_CLEAR(arglist);
 		logger("[Callback:R] eval_h (2)");
-	}	
-	r = TRUE;
-error:
-	assert( r || PyErr_Occurred());
-	save_python_exception();
-	Py_CLEAR(arrayx);
-	Py_CLEAR(lagrange);
-	Py_CLEAR(objfactor);
-	Py_XDECREF(result);
-	Py_CLEAR(arglist);
-  	return r;
+	}	                         
+  	return TRUE;
 }
 
 
