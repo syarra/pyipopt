@@ -4,7 +4,7 @@ import numpy as np
 import pyipopt
 
 class TestByExample(TestCase):
-    def test_eric_wus_example(self):
+    def test_example1(self):
         nvar = 4
         x_L = np.ones((nvar), dtype=np.float_) * 1.0
         x_U = np.ones((nvar), dtype=np.float_) * 5.0
@@ -109,18 +109,21 @@ class TestByExample(TestCase):
         r = nlp.solve(x0)
         nlp.close()
         
-        print "Solution of the primal variables, x"
-        print r["x"]
+        # print "Solution of the primal variables, x"
+        # print r["x"]
         
-        print "Solution of the bound multipliers, z_L and z_U"
-        print r["mult_xL"], r["mult_xU"]
+        # print "Solution of the bound multipliers, z_L and z_U"
+        # print r["mult_xL"], r["mult_xU"]
         
-        print "Solution of the constraint multiplier, lambda"
-        print r["mult_g"]
+        # print "Solution of the constraint multiplier, lambda"
+        # print r["mult_g"]
         
-        print "Objective value"
-        print "f(x*) =", r["f"]
+        # print "Objective value"
+        # print "f(x*) =", r["f"]
         
-        print "Constraint value"
-        print "g(x*) =", r["g"]
+        # print "Constraint value"
+        # print "g(x*) =", r["g"]
+        
+        nlp = pyipopt.create(nvar, x_L, x_U, ncon, g_L, g_U, nnzj, nnzh, eval_f, eval_grad_f, eval_g, eval_jac_g, eval_h)
+        r = nlp.solve(x0)
          

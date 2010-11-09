@@ -8,5 +8,6 @@
 !VERSION
 !.gitignore
 !Makefile.template
+!setup.py
 
 
