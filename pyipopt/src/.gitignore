@@ -1,0 +1,6 @@
+# EXCEPTIONS
+!*.c
+!*.h
+!*.cpp
+!*.hpp
+

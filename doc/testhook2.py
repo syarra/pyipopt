@@ -1,8 +1,3 @@
-"""
-Python and ipopt play together
-Eric You Xu, Washington University 2008
-"""
-
 import pyipopt
 import amplpy, _amplpy
 import sys, getopt

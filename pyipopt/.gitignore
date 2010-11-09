@@ -1,0 +1,4 @@
+# EXCEPTIONS
+!src
+!tests
+!*.py

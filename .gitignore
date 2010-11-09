@@ -1,18 +1,12 @@
-.*
-*.*~
-*.py~
-*.pyc
-
-*.o
-*.os
-*.so
-*~
-
-makefile
-
-build
-*.log
+*
 
 # EXCEPTIONS
+!pyipopt
+!doc
+
 !README
+!VERSION
 !.gitignore
+!Makefile.template
+
+

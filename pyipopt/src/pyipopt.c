@@ -163,8 +163,8 @@ PyObject *problem_getattr(PyObject* self, char* attrname)
 PyTypeObject IpoptProblemType = {
     PyObject_HEAD_INIT(&PyType_Type)
     0,                         /*ob_size*/
-    "pyipopt.Problem",         /*tp_name*/
-    sizeof(problem),    		/*tp_basicsize*/
+    "_pyipopt.Problem",        /*tp_name*/
+    sizeof(problem),           /*tp_basicsize*/
     0,                         /*tp_itemsize*/
     problem_dealloc,           /*tp_dealloc*/
     0,                         /*tp_print*/
@@ -565,33 +565,33 @@ static PyMethodDef ipoptMethods[] = {
 };
 
 PyMODINIT_FUNC 
-initpyipopt(void)
+init_pyipopt(void)
 {
 
 	   PyObject* m = 
-	   		Py_InitModule3("pyipopt", ipoptMethods, 
-	   			"A hooker between Ipopt and Python");
+	   		Py_InitModule3("_pyipopt", ipoptMethods, 
+	   			"Python Bindings for IPOPT");
 	   if (!m) goto error;
 	   
 	   import_array( );         /* Initialize the Numarray module. */
 		/* A segfault will occur if I use numarray without this.. */
 
-	   PyExc_SolveError = PyErr_NewException("pyipopt.SolveError",
+	   PyExc_SolveError = PyErr_NewException("_pyipopt.SolveError",
 						  NULL,NULL);
 	   if (!PyExc_SolveError) goto error;
-	   PyExc_SolveExceedMaxIter = PyErr_NewException("pyipopt.SolveExceedMaxIter",
+	   PyExc_SolveExceedMaxIter = PyErr_NewException("_pyipopt.SolveExceedMaxIter",
 							 PyExc_SolveError,NULL);
 	   if (!PyExc_SolveExceedMaxIter) goto error;
 	   if (-1 == PyObject_SetAttrString(m,"SolveError",PyExc_SolveError)) goto error;
 	   if (-1 == PyObject_SetAttrString(m,"SolveExceedMaxIter",PyExc_SolveExceedMaxIter)) goto error;
 
 	   if (PyErr_Occurred())	
-	 	  Py_FatalError("Unable to initialize module pyipopt");
+	 	  Py_FatalError("Unable to initialize module _pyipopt");
 	 	  
     	return;
 error:
 	PyErr_Print();
-	Py_FatalError("Unable to initialize module pyipopt");
+	Py_FatalError("Unable to initialize module _pyipopt");
 }
 /* End Python Module code section */
 
