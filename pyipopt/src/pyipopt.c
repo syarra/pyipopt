@@ -503,14 +503,16 @@ PyObject *solve(PyObject *self, PyObject *args)
 		
 		/* A fix for the mem-leak problem */
 		PyObject *r =
-			Py_BuildValue( "{sNsNsNsNsNsd}",
+			Py_BuildValue( "{sNsNsNsNsNsdsi}",
 				       "x", PyArray_Return( x ),
 				       "mult_xL", PyArray_Return( mL ),
 				       "mult_xU", PyArray_Return( mU ),
 				       "mult_g", PyArray_Return( lambda ),
 				       "g", con,
-				       "f", obj);
-		if (!r) return NULL;
+				       "f", obj,
+                       "sol_flag", status);
+		
+        if (!r) return NULL;
 
 		if (status != Maximum_Iterations_Exceeded)
 			return r;
@@ -523,7 +525,7 @@ PyObject *solve(PyObject *self, PyObject *args)
   	
   	else {
   		// FreeIpoptProblem(nlp);
-  		printf("[Error] Ipopt faied in solving problem instance\n");
+  		printf("[Error] Ipopt failed in solving problem instance\n");
 		if (!restore_python_exception())
 			PyErr_SetString(PyExc_SolveError, "Ipopt search failed");
   		return NULL;
