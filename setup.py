@@ -19,9 +19,9 @@ from numpy.distutils.misc_util import get_numpy_include_dirs
 # ADAPT THIS TO FIT YOUR SYSTEM
 
 extra_compile_args = ['-g']
-include_dirs = [get_numpy_include_dirs(),'pyipopt/src','/usr/local/include/coin']
-library_dirs = ['pyipopt/src','/usr/local']
-libraries = ['m','blas', 'lapack','ipopt']
+include_dirs = [get_numpy_include_dirs()[0],'pyipopt/src','/home/MGI/syarre/Env/pyOpt-IPOPT/programs/Ipopt-3.9.2/build/include/coin']
+library_dirs = ['pyipopt/src','/home/MGI/syarre/Env/pyOpt-IPOPT/lib','/home/MGI/syarre/Env/pyOpt-IPOPT/programs/Ipopt-3.9.2/build/lib/coin','/home/MGI/syarre/Env/pyOpt-IPOPT/programs/Ipopt-3.9.2/build/lib/coin/ThirdParty']
+libraries = ['m','coinhsl','coinmetis','lapack','ipopt']
 
 # PACKAGE INFORMATION
 CLASSIFIERS = """\
