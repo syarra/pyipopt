@@ -513,13 +513,13 @@ PyObject *solve(PyObject *self, PyObject *args)
                        "sol_flag", status);
 		
         if (!r) return NULL;
+        return r;
+		/*if (status != Maximum_Iterations_Exceeded)
+			return r;*/
 
-		if (status != Maximum_Iterations_Exceeded)
-			return r;
-
-		PyErr_SetObject(PyExc_SolveExceedMaxIter, r);
+		/*PyErr_SetObject(PyExc_SolveExceedMaxIter, r);
 		Py_DECREF(r);
-		return NULL;
+		return NULL;*/
   	}
   	
   	
@@ -581,11 +581,13 @@ init_pyipopt(void)
 	   PyExc_SolveError = PyErr_NewException("_pyipopt.SolveError",
 						  NULL,NULL);
 	   if (!PyExc_SolveError) goto error;
-	   PyExc_SolveExceedMaxIter = PyErr_NewException("_pyipopt.SolveExceedMaxIter",
+	   /*PyExc_SolveExceedMaxIter = PyErr_NewException("_pyipopt.SolveExceedMaxIter",
 							 PyExc_SolveError,NULL);
-	   if (!PyExc_SolveExceedMaxIter) goto error;
+	   if (!PyExc_SolveExceedMaxIter) goto error;*/
 	   if (-1 == PyObject_SetAttrString(m,"SolveError",PyExc_SolveError)) goto error;
-	   if (-1 == PyObject_SetAttrString(m,"SolveExceedMaxIter",PyExc_SolveExceedMaxIter)) goto error;
+	   /*if (-1 ==
+ * PyObject_SetAttrString(m,"SolveExceedMaxIter",PyExc_SolveExceedMaxIter)) goto
+ * error;*/
 
 	   if (PyErr_Occurred())	
 	 	  Py_FatalError("Unable to initialize module _pyipopt");
