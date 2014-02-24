@@ -1,112 +1,50 @@
-INSTALL:
+# pyipopt
+
+
+## Install
+
 
 In order to use this package, you have to have at least those packages on your computer:
 
-	1.	Compiler and linker
-	 		e.g. gcc, ld
+* Ipopt:
+  Download it from https://projects.coin-or.org/Ipopt
 
-	2.	Ipopt. 
-			Download it from https://projects.coin-or.org/Ipopt
-		
-		Numpy
-			http://numpy.scipy.org/	
-	
-	3.	Python.h
-			Usually you can use apt-get install python-dev (Debian family) or 
-			download the source code from python.org
-			
+* Numpy:
+  http://numpy.scipy.org/ or `pip install numpy`
+
+
+Modifiy setup.py to reflect your environment
 
 The install is very simple, just use
 
-	make pyipopt
+    python setup.py install
 
-or 
-	make install [might need superuser privilege as it will copy file to python dir]
-
-[IMPORTANT]
-	Before you type 
-		make install,
-	please exam that all the env variables in the makefile are correctly set. 
-	
-	Then, just issue
-		make install
 
 USE:
-	If everything is OK by now, you can just issue
-	
-		python example.py
-		
-	Ipopt will solve a toy application for you. This python file is self-documented. You can also check the document in the python interactive shell. This module is extensively documented. 
-	
-	Ipopt can also solve problems w/o hessian estimation. example.py demonstrates the idea. If you provide the pyipopt.create function with the eval_h callback function as well as the apply_new callback function, ipopt will delegate the Hessian matrix calculation to you. Otherwise Ipopt will use it's own approximate hessian calculation.
+    If everything is OK by now, you can just issue
+
+    python example.py
+
+Ipopt will solve a toy application for you. This python file is self-documented. You can also check the document in the python interactive shell. This module is extensively documented.
+
+Ipopt can also solve problems w/o hessian estimation. `example.py` demonstrates the idea. If you provide the pyipopt.create function with the eval_h callback function as well as the apply_new callback function, ipopt will delegate the Hessian matrix calculation to you. Otherwise Ipopt will use it's own approximate hessian calculation.
 
 
----------------------skip this section if you don't use AMPL--------------------
-
-Use it with AMPL
+## AMPL
 
 For people that use AMPL, the amplipopt is a very easy client that connect ampl and ipopt. Although it's also available in the ipopt package, here you can manipulate the model much easier in Python instead of in C/C++;
 
-To use that, you have to download nlpy from sf.net and fix a bug in it. 
+To use that, you have to download NLPy from github or `pip install nlpy`.
 
-[BUG FIX IN NLPY]
+The sparse matrix is stored as the triple (row, col, values). Nlpy return the row, col tuple in the row-wise manner but AMPL set the values in a col-wise manner according to goff. The way to fix that is to output the row-col tuple also in the col-wise manner.
 
-Edit $NLPYHOME$/Src/_amplpy.c around line 454
-change the code of 
-                     pirow[ j ] = (long)i;
-                     picol[ j ] = (long)(cg->varno);
+Another way to fix this is to set AMPL's goff value to make it row-wise.
 
-to 
+`trimloss.nl` and `test.nl` are all test samples. You can just
+    
+    python amplipopt.py trimloss.nl
 
-	  pirow[ cg->goff ] = (long)i;
-	  picol[ cg->goff ] = (long)(cg->varno);
-
-It's a bug in NLpy. AMPL return the sparse matrix in col-wise manner
-	[@See Hook your solver with AMPL, page 12, the jacval description]
-
-The sparse matrix is stored as the triple (row, col, values). Nlpy return the row, col tuple in the row-wise manner but AMPL set the values in a col-wise manner according to goff. The way to fix that is to output the row-col tuple also in the col-wise manner. 
-
-Another way to fix this is to set AMPL's goff value to make it row-wise. 
-
-trimloss.nl and test.nl are all test samples. You can just
-	python amplipopt.py trimloss.nl 
 to test if everything is OK
-
-If everything goes OK, please close this poorly written document and enjoy pyipopt.
--------------------------------------------------------------------------------
-
-----------------------Wait, I have an error......................--------------
-
-Some people reported that they don't have -lg2c or can't find libipopt.so.0. Note that this is not the problem of pyipopt itself. Please install libg2c and copy libipopt.so.0 to the dir where ld can identify. 
-
-Also, some people reported that when they use 
-
-	import pyipopt
-
-they got 
-
-	import pyipopt
-	ImportError: /usr/lib/libipopt.so.0: undefined symbol: _gfortran_XXX
-		
-If you get this error, it is VERY LIKELY that your ipopt library compiling is not correct. (Yes, I know you can use ipopt). Try to go to your 
-
-"$IPOPT_DIR/Ipopt/examples/hs071_c/" directory and do a "make"
-
-
-Please make sure that you can successfully compile and run this example. Pyipopt,as you might know, uses the same mechanism this example uses to call ipopt via C interface. Thus, if you can't go through this step, please don't proceed to send me a bug report, because I have no way to help you solve the problem with IPOPT itself :). My personal suggestion for this is the ipopt mailing list. 
-
-Once you have everything ready and get the ipopt example correct, you can get start to compile pyipopt. 
-
-I do apologize for the lacking of configure/make system. This is under construction. 
-
------------------------------------------------------------------------------
-
-
-For bug report and other suggestions, please contact me at 
-
-youxu AT wustl.edu (Change AT to @)
-
-You can simply call me Eric.
 
 
 
